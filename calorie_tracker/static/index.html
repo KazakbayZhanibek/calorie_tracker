@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Калории</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+
+    <header class="site-header">
+      <div class="header-left">
+        <h1>Калории EveryDay</h1>
+        <p class="subtitle">Трекер калорий</p>
+      </div>
+      <div class="header-right">
+        <input type="date" id="datePicker" />
+        <button id="btnTheme" class="btn-ghost" title="Переключить тему">🌙</button>
+        <button id="btnTeam" class="btn-ghost" title="О команде">👨‍💻</button>
+        <button id="btnGoal" class="btn-ghost" title="Изменить цель">⚙</button>
+      </div>
+    </header>
+
+    <!-- Summary -->
+    <section class="summary">
+      <div class="summary-date" id="summaryDate">9 марта, суббота</div>
+      <div class="summary-top">
+        <div class="cal-display">
+          <span id="totalCalories">0</span>
+          <small>Ккал</small>
+        </div>
+        <div class="cal-meta">
+          <span>Цель: <b id="goalDisplay">2000</b> Ккал</span>
+          <span id="calRemaining" class="remaining">осталось 2000</span>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </section>
+
+    <!-- Add form -->
+    <form id="addForm" class="add-form">
+      <div class="form-row">
+        <input id="foodName" type="text" placeholder="Продукт" required autocomplete="off" />
+        <input id="calories" type="number" placeholder="ккал / 100г" required min="1" />
+        <input id="quantity" type="number" placeholder="Порций" value="1" step="0.1" min="0.1" />
+        <button type="submit" class="btn-add">+</button>
+      </div>
+    </form>
+
+    <!-- Entries table -->
+    <section class="entries-section">
+      <div id="emptyState" class="empty-state">Нет записей за этот день</div>
+      <table id="entriesTable" class="entries-table hidden">
+        <thead>
+          <tr><th>Продукт</th><th>Ккал</th><th>Кол-во</th><th>Итого</th><th></th></tr>
+        </thead>
+        <tbody id="entriesBody"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3">Итого</td>
+            <td id="footTotal">0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <!-- History -->
+    <section class="history-section">
+      <h2>История</h2>
+      <div id="historyList" class="history-list"></div>
+    </section>
+
+  </div>
+
+  <!-- Goal modal -->
+  <div id="goalModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Дневная цель</h3>
+      <input type="number" id="goalInput" min="100" step="50" />
+      <div class="modal-actions">
+        <button id="btnSaveGoal" class="btn-primary">Сохранить</button>
+        <button id="btnCancelGoal" class="btn-ghost">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+<!-- Team modal -->
+<div id="teamModal" class="modal hidden">
+  <div class="modal-box modal-team">
+    <h3>Наши герои 🔥</h3>
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="team-avatar">
+          <img src="img/icon1.jpg" alt="Жанибек" loading="lazy" />
+        </div>
+        <div class="team-info">
+          <div class="team-name">Жанибек <span class="team-nick">"Главный КодМен"</span> ЧернаяМамба</div>
+          <div class="team-role">Просто главный кодмен</div>
+        </div>
+      </div>
+      
+      <div class="team-card">
+        <div class="team-avatar">
+          <img src="img/icon2.jpg" alt="Данчо" loading="lazy" />
+        </div>
+        <div class="team-info">
+          <div class="team-name">Данчо <span class="team-nick">"Дизайнер и Фронтенд"</span> МанТано</div>
+          <div class="team-role">HTML, CSS, БД, UI/UX, стили</div>
+        </div>
+      </div>
+      
+      <div class="team-card">
+        <div class="team-avatar">
+          <img src="img/icon3.jpg" alt="Димаш" loading="lazy" />
+        </div>
+        <div class="team-info">
+          <div class="team-name">Димаш <span class="team-nick">"Бэкенд-разработчик"</span> Соловей</div>
+          <div class="team-role">Бэкенд, API, JS логика, анимации</div>
+        </div>
+      </div>
+    </div>
+    <button id="btnCloseTeam" class="btn-primary">Закрыть</button>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
