@@ -1,5 +1,7 @@
 
-const API = "";
+import { createStore, STORAGE_KEY } from "./storage.js";
+
+const store = createStore();
 let currentDate = todayStr();
 let dailyGoal = 2000;
 
@@ -7,27 +9,21 @@ function todayStr() {
   return new Date().toLocaleDateString("sv-SE");
 }
 
-async function fetchJSON(url, opts = {}) {
-  const res = await fetch(API + url, opts);
-  if (!res.ok) throw new Error(await res.text());
-  if (res.status === 204) return null;
-  return res.json();
-}
-
-async function loadAll() {
+function loadAll() {
   try {
-    const [summary, entries, history] = await Promise.all([
-      fetchJSON(`/api/summary?date=${currentDate}`),
-      fetchJSON(`/api/entries?date=${currentDate}`),
-      fetchJSON("/api/history"),
-    ]);
+    const summary = store.getSummary(currentDate);
+    const entries = store.getEntries(currentDate);
+    const history = store.getHistory();
     dailyGoal = summary.daily_goal;
     renderSummary(summary);
     renderEntries(entries);
     renderHistory(history, summary.daily_goal);
+    document.getElementById("storageError").hidden = true;
   } catch (err) {
     console.error("Ошибка загрузки данных:", err);
-    document.getElementById("emptyState").textContent = "Ошибка загрузки данных";
+    const message = document.getElementById("storageError");
+    message.textContent = err.message;
+    message.hidden = false;
   }
 }
 
@@ -63,6 +59,7 @@ function renderEntries(entries) {
   const table = document.getElementById("entriesTable");
   const tbody = document.getElementById("entriesBody");
   if (!entries.length) {
+    empty.textContent = "Нет записей за этот день";
     empty.classList.remove("hidden");
     table.classList.add("hidden");
     return;
@@ -78,23 +75,35 @@ function renderEntries(entries) {
       <td>${e.calories}</td>
       <td>${e.quantity}</td>
       <td>${line}</td>
-      <td><button class="btn-del" data-id="${e.id}">✕</button></td>
+      <td><button class="btn-del" data-id="${esc(e.id)}" aria-label="Удалить запись">✕</button></td>
     </tr>`;
   }).join("");
   document.getElementById("footTotal").textContent = total;
 }
 
-// Обработчик удаления записей через event delegation
-document.addEventListener("click", async (e) => {
+let pendingDeleteId = null;
+const deleteDialog = document.getElementById("deleteDialog");
+
+// Подтверждение удаления остаётся внутри страницы.
+document.addEventListener("click", (e) => {
   if (e.target.classList.contains("btn-del")) {
-    const id = e.target.dataset.id;
-    if (!confirm("Удалить эту запись?")) return;
-    try {
-      await fetchJSON(`/api/entries/${id}`, { method: "DELETE" });
-      loadAll();
-    } catch (err) {
-      alert("Ошибка при удалении: " + err.message);
-    }
+    pendingDeleteId = e.target.dataset.id;
+    deleteDialog.showModal();
+  }
+});
+
+document.getElementById("btnCancelDelete").addEventListener("click", () => deleteDialog.close());
+deleteDialog.addEventListener("close", () => { pendingDeleteId = null; });
+document.getElementById("btnConfirmDelete").addEventListener("click", () => {
+  try {
+    store.deleteEntry(pendingDeleteId);
+    deleteDialog.close();
+    loadAll();
+  } catch (err) {
+    deleteDialog.close();
+    const message = document.getElementById("storageError");
+    message.textContent = err.message;
+    message.hidden = false;
   }
 });
 
@@ -103,12 +112,12 @@ function renderHistory(history, goal) {
   if (!history.length) { el.innerHTML = ""; return; }
   el.innerHTML = history.map(h => {
     const cls = h.total <= goal ? "good" : "over";
-    const d = new Date(h.date);
+    const d = new Date(h.date + "T00:00:00");
     const label = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", weekday: "short" });
-    return `<div class="history-item" onclick="goToDate('${h.date}')">
+    return `<button type="button" class="history-item" data-date="${h.date}">
       <span class="date">${label}</span>
       <span class="cal-val ${cls}">${h.total} ккал</span>
-    </div>`;
+    </button>`;
   }).join("");
 }
 
@@ -118,27 +127,18 @@ function goToDate(d) {
   loadAll();
 }
 
-async function deleteEntry(id) {
-  if (!confirm("Удалить эту запись?")) return;
-  try {
-    await fetchJSON(`/api/entries/${id}`, { method: "DELETE" });
-    loadAll();
-  } catch (err) {
-    alert("Ошибка при удалении: " + err.message);
-  }
-}
+document.getElementById("historyList").addEventListener("click", e => {
+  const item = e.target.closest("[data-date]");
+  if (item) goToDate(item.dataset.date);
+});
 
-document.getElementById("addForm").addEventListener("submit", async e => {
+document.getElementById("addForm").addEventListener("submit", e => {
   e.preventDefault();
   const food_name = document.getElementById("foodName").value.trim();
-  const calories = parseInt(document.getElementById("calories").value);
-  const quantity = parseFloat(document.getElementById("quantity").value);
+  const calories = Number(document.getElementById("calories").value);
+  const quantity = Number(document.getElementById("quantity").value);
   try {
-    await fetchJSON("/api/entries", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ food_name, calories, quantity, date: currentDate }),
-    });
+    store.addEntry({ food_name, calories, quantity, date: currentDate });
     document.getElementById("foodName").value = "";
     document.getElementById("calories").value = "";
     document.getElementById("quantity").value = "1";
@@ -151,6 +151,10 @@ document.getElementById("addForm").addEventListener("submit", async e => {
 });
 
 document.getElementById("datePicker").addEventListener("change", e => {
+  if (!e.target.value) {
+    e.target.value = currentDate;
+    return;
+  }
   currentDate = e.target.value;
   loadAll();
 });
@@ -171,18 +175,14 @@ document.getElementById("btnCancelGoal").addEventListener("click", () => {
 document.getElementById("btnCloseTeam").addEventListener("click", () => {
   document.getElementById("teamModal").classList.add("hidden");
 });
-document.getElementById("btnSaveGoal").addEventListener("click", async () => {
-  const val = parseInt(document.getElementById("goalInput").value);
-  if (!val || val < 100) {
+document.getElementById("btnSaveGoal").addEventListener("click", () => {
+  const val = Number(document.getElementById("goalInput").value);
+  if (!Number.isSafeInteger(val) || val < 100) {
     alert("Цель должна быть не менее 100 ккал");
     return;
   }
   try {
-    await fetchJSON("/api/settings/goal", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ daily_goal: val }),
-    });
+    store.setGoal(val);
     document.getElementById("goalModal").classList.add("hidden");
     loadAll();
   } catch (err) {
@@ -191,7 +191,7 @@ document.getElementById("btnSaveGoal").addEventListener("click", async () => {
 });
 
 function esc(s) {
-  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
 function showSaveNotification(text = "✓ Запись сохранена") {
@@ -276,7 +276,8 @@ document.getElementById("btnTheme").addEventListener("click", toggleTheme);
 
 // Init
 function initTheme() {
-  const savedTheme = localStorage.getItem("theme") || "light";
+  let savedTheme = "light";
+  try { savedTheme = localStorage.getItem("theme") || "light"; } catch { /* Data errors are shown by loadAll. */ }
   if (savedTheme === "dark") {
     document.body.classList.add("dark-mode");
     document.getElementById("btnTheme").textContent = "☀️";
@@ -289,7 +290,7 @@ function initTheme() {
 function toggleTheme() {
   const isDarkMode = document.body.classList.toggle("dark-mode");
   const theme = isDarkMode ? "dark" : "light";
-  localStorage.setItem("theme", theme);
+  try { localStorage.setItem("theme", theme); } catch { /* Theme can still change for this visit. */ }
   document.getElementById("btnTheme").textContent = isDarkMode ? "☀️" : "🌙";
 }
 
@@ -297,3 +298,8 @@ const dp = document.getElementById("datePicker");
 dp.value = currentDate;
 initTheme();
 loadAll();
+
+window.addEventListener("storage", event => {
+  if (event.key === STORAGE_KEY || event.key === null) loadAll();
+  if (event.key === "theme" || event.key === null) initTheme();
+});

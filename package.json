@@ -1,0 +1,9 @@
+{
+  "name": "calorie-tracker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/storage.test.js",
+    "start": "node scripts/serve.js"
+  }
+}
